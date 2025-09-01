@@ -1,0 +1,49 @@
+
+services:
+  api:
+    build: ./api-gateway
+    env_file: .env
+    environment:
+      - PYTHONPATH=/workspace
+      - DB_URL=${DB_URL:-sqlite:////workspace/artifacts/events.db}
+    volumes:
+      - ./api-gateway:/workspace
+      - ./common:/workspace/common
+      - ./artifacts:/workspace/artifacts
+      - ./app-template:/workspace/app
+    ports: ["8000:8000"]
+    restart: unless-stopped
+
+  orchestrator:
+    build: ./orchestrator
+    env_file: .env
+    environment:
+      - PYTHONPATH=/workspace
+      - DB_URL=${DB_URL:-sqlite:////workspace/artifacts/events.db}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - GEN_MODEL=${GEN_MODEL:-qwen2.5:3b}
+    volumes:
+      - ./orchestrator:/workspace
+      - ./common:/workspace/common
+      - ./artifacts:/workspace/artifacts
+      - ./app-template:/workspace/app
+    command: ["python", "workflow.py"]
+    restart: unless-stopped
+
+  web:
+    build: ./web-ui
+    env_file: .env
+    depends_on: [api]
+    ports: ["8501:8501"]
+    volumes:
+      - ./web-ui:/app
+    restart: unless-stopped
+
+  preview:
+    build: ./app-template/backend
+    env_file: .env
+    volumes:
+      - ./app-template:/app
+    ports: ["9000:9000"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000", "--reload"]
+    restart: unless-stopped
